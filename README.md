@@ -23,4 +23,3 @@ flutter run
 - Add at least five real tasks to the Trello board and capture a readable screenshot.
 
 Suggested task cards: design start screen, build board UI, implement win detection, add two-player mode, create bot opponent, and test/review the app.
-z
