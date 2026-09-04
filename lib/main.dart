@@ -199,7 +199,15 @@ class _GameScreenState extends State<GameScreen> {
   late List<List<int>> board;
   int currentPlayer = 1, score1 = 0, score2 = 0;
   int? winner, lastRow, lastColumn;
-  bool isDraw = false, botThinking = false;
+  bool isDraw = false, botThinking = false, dragging = false;
+
+  static const _p1 = Color(0xFFFFC857), _p2 = Color(0xFFFF5C7A);
+  Color get _turnColor => (winner ?? currentPlayer) == 1 ? _p1 : _p2;
+  bool get _canDrop =>
+      winner == null &&
+      !isDraw &&
+      !botThinking &&
+      !(widget.mode == GameMode.solo && currentPlayer == 2);
 
   @override
   void initState() {
@@ -211,7 +219,7 @@ class _GameScreenState extends State<GameScreen> {
     board = List.generate(rows, (_) => List.filled(columns, 0));
     currentPlayer = 1;
     winner = lastRow = lastColumn = null;
-    isDraw = botThinking = false;
+    isDraw = botThinking = dragging = false;
   }
 
   void _newRound() => setState(_reset);
@@ -370,52 +378,68 @@ class _GameScreenState extends State<GameScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 22),
-              AspectRatio(
-                aspectRatio: 7 / 6.4,
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6C5CE7),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x556C5CE7), blurRadius: 25),
-                    ],
-                  ),
-                  child: Column(
-                    children: List.generate(
-                      rows,
-                      (r) => Expanded(
-                        child: Row(
+              const SizedBox(height: 14),
+              _DiscTray(
+                color: _turnColor,
+                enabled: _canDrop,
+                dragging: dragging,
+                onDragStarted: () => setState(() => dragging = true),
+                onDragEnded: () => setState(() => dragging = false),
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: AspectRatio(
+                  aspectRatio: 7 / 6.4,
+                  child: Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6C5CE7),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x556C5CE7), blurRadius: 25),
+                          ],
+                        ),
+                        child: Column(
                           children: List.generate(
-                            columns,
-                            (c) => Expanded(
-                              child: Semantics(
-                                button: true,
-                                label: 'Column ${c + 1}',
-                                child: InkWell(
-                                  key: Key('cell-$r-$c'),
-                                  borderRadius: BorderRadius.circular(99),
-                                  onTap: () => _play(c),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(3.5),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 220,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: board[r][c] == 1
-                                            ? const Color(0xFFFFC857)
-                                            : board[r][c] == 2
-                                            ? const Color(0xFFFF5C7A)
-                                            : const Color(0xFF202038),
-                                        shape: BoxShape.circle,
-                                        border: r == lastRow && c == lastColumn
-                                            ? Border.all(
-                                                color: Colors.white,
-                                                width: 2,
-                                              )
-                                            : null,
+                            rows,
+                            (r) => Expanded(
+                              child: Row(
+                                children: List.generate(
+                                  columns,
+                                  (c) => Expanded(
+                                    child: Semantics(
+                                      button: true,
+                                      label: 'Column ${c + 1}',
+                                      child: InkWell(
+                                        key: Key('cell-$r-$c'),
+                                        borderRadius: BorderRadius.circular(99),
+                                        onTap: () => _play(c),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(3.5),
+                                          child: AnimatedContainer(
+                                            duration: const Duration(
+                                              milliseconds: 220,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: board[r][c] == 1
+                                                  ? const Color(0xFFFFC857)
+                                                  : board[r][c] == 2
+                                                  ? const Color(0xFFFF5C7A)
+                                                  : const Color(0xFF202038),
+                                              shape: BoxShape.circle,
+                                              border:
+                                                  r == lastRow &&
+                                                      c == lastColumn
+                                                  ? Border.all(
+                                                      color: Colors.white,
+                                                      width: 2,
+                                                    )
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -425,7 +449,63 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ),
                       ),
-                    ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          ignoring: !dragging,
+                          child: Row(
+                            children: List.generate(
+                              columns,
+                              (c) => Expanded(
+                                child: DragTarget<int>(
+                                  onWillAcceptWithDetails: (_) =>
+                                      _canDrop && _openRow(c) != null,
+                                  onAcceptWithDetails: (_) {
+                                    setState(() => dragging = false);
+                                    _play(c);
+                                  },
+                                  builder: (context, candidate, rejected) {
+                                    final active = candidate.isNotEmpty;
+                                    return Container(
+                                      key: Key('drop-$c'),
+                                      margin: const EdgeInsets.all(3.5),
+                                      decoration: BoxDecoration(
+                                        color: active
+                                            ? Colors.white.withValues(
+                                                alpha: .14,
+                                              )
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: active
+                                            ? Border.all(
+                                                color: Colors.white.withValues(
+                                                  alpha: .8,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                      child: Align(
+                                        alignment: Alignment.topCenter,
+                                        child: active
+                                            ? Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 4,
+                                                ),
+                                                child: _Disc(
+                                                  color: _turnColor,
+                                                  size: 26,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -453,6 +533,85 @@ class _GameScreenState extends State<GameScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _Disc extends StatelessWidget {
+  const _Disc({required this.color, required this.size, this.faded = false});
+  final Color color;
+  final double size;
+  final bool faded;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: faded ? .25 : 1),
+      shape: BoxShape.circle,
+      boxShadow: faded
+          ? null
+          : [BoxShadow(color: color.withValues(alpha: .5), blurRadius: 12)],
+    ),
+  );
+}
+
+/// The disc the current player drags onto the board. Falls back to a static
+/// hint when dragging is disabled (game over or the bot's turn).
+class _DiscTray extends StatelessWidget {
+  const _DiscTray({
+    required this.color,
+    required this.enabled,
+    required this.dragging,
+    required this.onDragStarted,
+    required this.onDragEnded,
+  });
+  final Color color;
+  final bool enabled;
+  final bool dragging;
+  final VoidCallback onDragStarted;
+  final VoidCallback onDragEnded;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = 40.0;
+    final disc = _Disc(color: color, size: size);
+    return SizedBox(
+      height: size + 22,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Opacity(
+            opacity: enabled ? 1 : .35,
+            child: IgnorePointer(
+              ignoring: !enabled,
+              child: Draggable<int>(
+                key: const Key('disc-tray'),
+                data: 1,
+                onDragStarted: onDragStarted,
+                onDragEnd: (_) => onDragEnded(),
+                onDraggableCanceled: (_, _) => onDragEnded(),
+                feedback: _Disc(color: color, size: size * 1.25),
+                childWhenDragging: _Disc(color: color, size: size, faded: true),
+                child: disc,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            dragging
+                ? 'Drop it on a column'
+                : enabled
+                ? 'Drag the disc onto the board'
+                : 'Tap a column to drop',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: .5),
+              fontSize: 11,
+              letterSpacing: .5,
+            ),
+          ),
+        ],
       ),
     );
   }
