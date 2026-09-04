@@ -26,5 +26,6 @@ Suggested task cards: design start screen, build board UI, implement win detecti
 
 ## Futture plans
 
+Changing game modes
 adding draggable game pieces
 unlocking colors and style
